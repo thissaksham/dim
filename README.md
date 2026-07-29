@@ -2,7 +2,8 @@
 
 A screen dimmer for Windows that goes darker than your monitor's own 0%.
 
-One PowerShell file. No install, no dependencies, no build step.
+One 17 KB executable. Double-click it and it's in your tray. No installer, no
+runtime to fetch, no PowerShell policy to change, no shortcut to configure.
 
 ![the slider flyout](docs/flyout.png)
 
@@ -13,26 +14,26 @@ external displays the Windows brightness slider often does nothing at all. `dim`
 draws a click-through black overlay on every monitor instead, so it keeps
 darkening past whatever floor your hardware has.
 
-## Run
+## Use
 
-```powershell
-powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File .\dim.ps1
-```
+Download `dim.exe` and double-click it. A half-moon icon appears in the
+notification area — left-click for the slider, right-click for Exit. Exiting
+always restores full brightness.
 
-A half-moon icon appears in the notification area. Left-click it for the slider,
-right-click for Exit. Exiting always restores full brightness.
+The slider takes drag, scroll wheel, arrow keys (±5), and Home/End. Esc closes
+it; so does clicking anywhere else.
 
-| Flag | Effect |
-|------|--------|
-| `-Percent 60` | start at 60% instead of 0 |
-| `-Test` | run the self-check and quit |
-
-Slider supports drag, scroll wheel, arrow keys (±5), and Home/End.
+| Argument | Effect |
+|----------|--------|
+| `--percent 60` | start at 60% instead of 0 |
+| `--test` | run the self-check and quit |
 
 ### Start it with Windows
 
-Drop a shortcut to the command above into the folder that opens from
-`Win+R` → `shell:startup`.
+Press `Win+R`, run `shell:startup`, and drop `dim.exe` (or a copy of it) in the
+folder that opens. That's the whole setup — an `.exe` needs no shortcut and no
+launcher, unlike a `.ps1`, which Windows will not run from the startup folder at
+all.
 
 ## What it does not dim
 
@@ -46,7 +47,7 @@ The overlay is a normal topmost window, which puts a few things out of reach:
 | Fullscreen-exclusive games | Bypass the compositor entirely |
 
 Dropdowns and context menus *are* covered — they open above any pre-existing
-topmost window, so the app re-claims the top every 700ms. Expect a brief flash
+topmost window, so `dim` re-claims the top every 700 ms. Expect a brief flash
 before it catches up.
 
 Adjusting the display **gamma ramp** instead would dim all of the above, since
@@ -62,16 +63,29 @@ needs no registry edit and no admin rights.
 - Capped at 90%. A 100% overlay is an unrecoverable black screen — you could not
   find the slider to undo it.
 - Overlays are built once at startup. Plug in a monitor later and it stays
-  undimmed until you restart the app.
+  undimmed until you restart.
 - Theme and accent colour are read from the registry at startup, so switching
   Windows between light and dark needs a restart.
+- The binary is unsigned. Downloading it from GitHub attaches a mark-of-the-web,
+  so SmartScreen will warn on first run — build it yourself if you'd rather not
+  click through that.
+
+## Build
+
+```bat
+build.cmd
+```
+
+Uses `csc.exe` from the .NET Framework that ships with Windows. There is nothing
+to install: no SDK, no NuGet, no package manifest. Output is a single
+self-contained `dim.exe`.
 
 ## Self-check
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\dim.ps1 -Test
+```bat
+dim.exe --test
 ```
 
-Covers the pointer→value math, clamping at both ends, overlay opacity, and
-renders the flyout to `%TEMP%\dim-flyout.png` so a silently-thrown paint
-handler shows up as a blank image.
+Covers the pointer→value math, clamping at both ends, overlay opacity, tray and
+label text, and renders the flyout to `%TEMP%\dim-flyout.png` so a
+silently-thrown paint handler shows up as a blank image.
