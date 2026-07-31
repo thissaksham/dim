@@ -62,8 +62,10 @@ needs no registry edit and no admin rights.
 
 - Capped at 90%. A 100% overlay is an unrecoverable black screen — you could not
   find the slider to undo it.
-- Overlays are built once at startup. Plug in a monitor later and it stays
-  undimmed until you restart.
+- One overlay spans the whole virtual desktop and resizes on `WM_DISPLAYCHANGE`,
+  so changing resolution or plugging in a monitor is covered without a restart.
+  This matters at boot: launched from the startup folder, `dim` runs before the
+  GPU driver sets the final display mode.
 - Theme and accent colour are read from the registry at startup, so switching
   Windows between light and dark needs a restart.
 - The binary is unsigned. Downloading it from GitHub attaches a mark-of-the-web,

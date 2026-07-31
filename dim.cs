@@ -177,14 +177,18 @@ class DimSlider : UserControl
     }
 }
 
-/// <summary>Full-screen black sheet. Click-through and unfocusable, so it is invisible to input.</summary>
+/// <summary>
+/// Black sheet over every monitor at once. Click-through and unfocusable, so it is invisible to input.
+/// One window spanning the virtual desktop rather than one per screen: it then only has to be resized
+/// on a display change, never rebuilt, so adding or removing a monitor needs no special case.
+/// </summary>
 class Overlay : Form
 {
-    public Overlay(Rectangle bounds)
+    public Overlay()
     {
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
-        Bounds = bounds;
+        Bounds = SystemInformation.VirtualScreen;
         BackColor = Color.Black;
         TopMost = true;
         ShowInTaskbar = false;
@@ -203,6 +207,16 @@ class Overlay : Form
     }
 
     protected override bool ShowWithoutActivation { get { return true; } }
+
+    // A resolution change, a monitor plugged in, a screen rearranged -- all arrive as WM_DISPLAYCHANGE.
+    // Without this the overlay keeps whatever size the desktop had when it was created, which at boot
+    // is the driver's pre-init mode, leaving most of the screen undimmed.
+    // VirtualScreen is read live from the system metrics; Screen.AllScreens would be a stale cache here.
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == 0x007E) Bounds = SystemInformation.VirtualScreen;
+        base.WndProc(ref m);
+    }
 }
 
 class DimApp : ApplicationContext
@@ -212,7 +226,7 @@ class DimApp : ApplicationContext
     public const int MaxPct = 90;
 
     readonly Theme theme;
-    readonly Overlay[] overlays;
+    readonly Overlay overlay;
     readonly NotifyIcon tray;
     readonly Form flyout;
     readonly Label valueLabel;
@@ -228,12 +242,8 @@ class DimApp : ApplicationContext
         using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
             theme = new Theme(g.DpiX / 96f);
 
-        overlays = new Overlay[Screen.AllScreens.Length];
-        for (int i = 0; i < Screen.AllScreens.Length; i++)
-        {
-            overlays[i] = new Overlay(Screen.AllScreens[i].Bounds);
-            overlays[i].Show();
-        }
+        overlay = new Overlay();
+        overlay.Show();
 
         flyout = new Form();
         flyout.FormBorderStyle = FormBorderStyle.None;
@@ -311,9 +321,8 @@ class DimApp : ApplicationContext
         keepTop.Tick += delegate
         {
             if (Level <= 0) return;
-            foreach (Overlay o in overlays)
-                Native.SetWindowPos(o.Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_KEEP);
-            if (flyout.Visible)                                       // ...but never dim our own slider
+            Native.SetWindowPos(overlay.Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_KEEP);
+            if (flyout.Visible)                                     // ...but never dim our own slider
                 Native.SetWindowPos(flyout.Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_KEEP);
         };
         if (!testMode) keepTop.Start();
@@ -325,7 +334,7 @@ class DimApp : ApplicationContext
     void Apply()
     {
         int pct = Slider.Value;
-        foreach (Overlay o in overlays) o.Opacity = pct / 100.0;
+        overlay.Opacity = pct / 100.0;
         tray.Text = "Dim: " + pct + "%";
         valueLabel.Text = pct + "%";
     }
@@ -357,7 +366,8 @@ class DimApp : ApplicationContext
     }
 
     // --- self-check hooks ---
-    public double OverlayOpacity { get { return overlays[0].Opacity; } }
+    public double OverlayOpacity { get { return overlay.Opacity; } }
+    public Rectangle OverlayBounds { get { return overlay.Bounds; } }
     public string TrayText { get { return tray.Text; } }
     public string ValueText { get { return valueLabel.Text; } }
 
@@ -385,7 +395,7 @@ class DimApp : ApplicationContext
             keepTop.Dispose();
             tray.Dispose();
             flyout.Dispose();
-            foreach (Overlay o in overlays) o.Dispose();
+            overlay.Dispose();
         }
         base.Dispose(disposing);
     }
@@ -402,6 +412,9 @@ static class SelfTest
             using (DimApp app = new DimApp(0, true))
             {
                 DimSlider s = app.Slider;
+
+                Check(app.OverlayBounds == SystemInformation.VirtualScreen,
+                      "overlay does not cover the desktop: " + app.OverlayBounds);
 
                 s.SetValue(40);
                 Check(Math.Abs(app.OverlayOpacity - 0.40) < 0.001, "overlay opacity " + app.OverlayOpacity);
